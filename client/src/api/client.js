@@ -1,8 +1,11 @@
 // Tiny API client — every request goes through here.
-// Attaches the JWT (Bearer) automatically; throws on errors with the
+// Attaches the JWT automatically; throws on errors with the
 // server's message, so pages can just catch + toast it.
 
-const API_BASE = "/api/v1";
+const API_BASE = import.meta.env.VITE_API_URL
+  ? `${import.meta.env.VITE_API_URL}/api/v1`
+  : "/api/v1";
+
 const TOKEN_KEY = "sp_token";
 
 export const getToken = () => localStorage.getItem(TOKEN_KEY);
@@ -11,7 +14,10 @@ export const clearToken = () => localStorage.removeItem(TOKEN_KEY);
 
 export async function api(path, { method = "GET", body, auth = true } = {}) {
   const headers = { "Content-Type": "application/json" };
-  if (auth && getToken()) headers.Authorization = `Bearer ${getToken()}`;
+
+  if (auth && getToken()) {
+    headers.Authorization = `Bearer ${getToken()}`;
+  }
 
   const res = await fetch(API_BASE + path, {
     method,
@@ -22,9 +28,12 @@ export async function api(path, { method = "GET", body, auth = true } = {}) {
   const data = await res.json().catch(() => ({}));
 
   if (!res.ok) {
-    const err = new Error(data?.message || "Something went wrong. Please try again.");
+    const err = new Error(
+      data?.message || "Something went wrong. Please try again."
+    );
     err.status = res.status;
     throw err;
   }
+
   return data?.data;
 }
