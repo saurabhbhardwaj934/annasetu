@@ -4,6 +4,7 @@
  * Database: MongoDB Atlas (MONGODB_URI in server/.env).
  * Create your free cluster at https://www.mongodb.com/cloud/atlas
  */
+
 import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
@@ -15,12 +16,70 @@ import { notFound } from "./middlewares/notFound.js";
 
 const app = express();
 
-// ── Global middleware ──
-app.use(cors({ origin: ENV.CORS_ORIGIN, credentials: true }));
+/* ─────────────────────────────────────────
+   CORS
+   ───────────────────────────────────────── */
+
+const allowedOrigins = [
+  "http://localhost:5173",
+  "http://localhost:3000",
+  "https://annasetu-vr6n.vercel.app",
+];
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow requests from Postman/server-to-server
+      if (!origin) {
+        return callback(null, true);
+      }
+
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      console.log("❌ CORS blocked:", origin);
+
+      return callback(
+        new Error(`CORS blocked for origin: ${origin}`)
+      );
+    },
+
+    credentials: true,
+
+    methods: [
+      "GET",
+      "POST",
+      "PUT",
+      "PATCH",
+      "DELETE",
+      "OPTIONS",
+    ],
+
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "Accept",
+      "Origin",
+      "X-Requested-With",
+    ],
+  })
+);
+
+/* ─────────────────────────────────────────
+   Preflight Requests
+   ───────────────────────────────────────── */
+
+app.options("*", cors());
+
+/* ─────────────────────────────────────────
+   Global middleware
+   ───────────────────────────────────────── */
+
 app.use(express.json({ limit: "1mb" }));
 app.use(cookieParser());
 
-// Tiny request logger for development
+/* Tiny request logger for development */
 if (ENV.NODE_ENV !== "production") {
   app.use((req, _res, next) => {
     console.log(`  ➜ ${req.method} ${req.originalUrl}`);
@@ -28,19 +87,36 @@ if (ENV.NODE_ENV !== "production") {
   });
 }
 
-// ── Routes ──
+/* ─────────────────────────────────────────
+   Routes
+   ───────────────────────────────────────── */
+
 app.use(routes);
 
-// ── 404 + central error handler (must be last) ──
+/* ─────────────────────────────────────────
+   404 + central error handler
+   ───────────────────────────────────────── */
+
 app.use(notFound);
 app.use(errorHandler);
 
-// ── Boot ──
+/* ─────────────────────────────────────────
+   Boot
+   ───────────────────────────────────────── */
+
 const start = async () => {
-  await connectDB();
-  app.listen(ENV.PORT, "0.0.0.0", () => {
-    console.log(`🌾 Annasetu API listening on http://localhost:${ENV.PORT}`);
-  });
+  try {
+    await connectDB();
+
+    app.listen(ENV.PORT, "0.0.0.0", () => {
+      console.log(
+        `🌾 Annasetu API listening on http://localhost:${ENV.PORT}`
+      );
+    });
+  } catch (error) {
+    console.error("❌ Server failed to start:", error);
+    process.exit(1);
+  }
 };
 
 start();
