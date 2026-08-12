@@ -1,35 +1,131 @@
-import { Router } from "express";
-import { API_PREFIX } from "../constants.js";
-import { ApiResponse } from "../utils/ApiResponse.js";
-import authRoutes from "./auth.routes.js";
-import healthRoutes from "./health.routes.js";
-import donationRoutes from "./donation.routes.js";
-import claimRoutes from "./claim.routes.js";
-import impactRoutes from "./impact.routes.js";
+/**
+ * 🌾 Annasetu — Surplus Food Rescue Network (MERN + MongoDB Atlas)
+ */
 
-const router = Router();
+import express from "express";
+import cors from "cors";
+import cookieParser from "cookie-parser";
+import { connectDB } from "./config/db.js";
+import { ENV } from "./config/env.js";
+import routes from "./routes/index.js";
+import { errorHandler } from "./middlewares/errorHandler.js";
+import { notFound } from "./middlewares/notFound.js";
 
-// ── Mount feature routes ──
-router.use(`${API_PREFIX}/health`, healthRoutes);
-router.use(`${API_PREFIX}/auth`, authRoutes);
-router.use(`${API_PREFIX}/donations`, donationRoutes);
-router.use(`${API_PREFIX}/claims`, claimRoutes);
-router.use(`${API_PREFIX}/impact`, impactRoutes);
+const app = express();
 
-// ── API root info ──
-router.get(API_PREFIX, (req, res) => {
-  res.json(
-    new ApiResponse(200, {
-      name: "Annasetu API — Surplus Food Rescue Network",
-      version: "1.0.0",
-      endpoints: {
-        health: `${API_PREFIX}/health`,
-        donations: `${API_PREFIX}/donations`,
-        claims: `${API_PREFIX}/claims`,
-        impact: `${API_PREFIX}/impact`,
-      },
-    })
-  );
-});
+/* ─────────────────────────────────────────
+   CORS
+   ───────────────────────────────────────── */
 
-export default router;
+const allowedOrigins = [
+  "http://localhost:5173",
+  "http://localhost:3000",
+
+  // Vercel production
+  "https://annasetu-vr6n.vercel.app",
+
+  // Vercel preview
+  "https://annasetu-vr6n-jnslem189-saurabh-bhardwaj-s-projects.vercel.app",
+];
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (!origin) {
+        return callback(null, true);
+      }
+
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      // Allow all Vercel preview URLs for this project
+      if (
+        origin.startsWith("https://annasetu-vr6n-") &&
+        origin.endsWith(".vercel.app")
+      ) {
+        return callback(null, true);
+      }
+
+      console.log("❌ CORS blocked:", origin);
+
+      return callback(
+        new Error(`CORS blocked for origin: ${origin}`)
+      );
+    },
+
+    credentials: true,
+
+    methods: [
+      "GET",
+      "POST",
+      "PUT",
+      "PATCH",
+      "DELETE",
+      "OPTIONS",
+    ],
+
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "Accept",
+      "Origin",
+      "X-Requested-With",
+    ],
+  })
+);
+
+/* Preflight */
+app.options("*", cors());
+
+/* ─────────────────────────────────────────
+   Global middleware
+   ───────────────────────────────────────── */
+
+app.use(express.json({ limit: "1mb" }));
+app.use(cookieParser());
+
+if (ENV.NODE_ENV !== "production") {
+  app.use((req, _res, next) => {
+    console.log(`➜ ${req.method} ${req.originalUrl}`);
+    next();
+  });
+}
+
+/* ─────────────────────────────────────────
+   Routes
+   ───────────────────────────────────────── */
+
+app.use(routes);
+
+/* ─────────────────────────────────────────
+   404 + Error Handler
+   ───────────────────────────────────────── */
+
+app.use(notFound);
+app.use(errorHandler);
+
+/* ─────────────────────────────────────────
+   Boot
+   ───────────────────────────────────────── */
+
+const start = async () => {
+  try {
+    await connectDB();
+
+    app.listen(ENV.PORT, "0.0.0.0", () => {
+      console.log(
+        `🌾 Annasetu API listening on http://localhost:${ENV.PORT}`
+      );
+
+      console.log(
+        "🚀 Backend URL: https://annasetu-1-q14o.onrender.com"
+      );
+    });
+  } catch (error) {
+    console.error("❌ Server startup failed:", error);
+    process.exit(1);
+  }
+};
+
+start();
